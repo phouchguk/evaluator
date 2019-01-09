@@ -108,17 +108,17 @@
   `((lambda ,(map car defs) ,@body)
     ,@(map cadr defs)))
 
-(define (last-exp? seq)
-  (null? (cdr seq)))
-
-(define (sequence->exp seq)
-  (if (null? seq)
-      seq
-      (if (last-exp? seq)
-          (car seq)
-          (cons 'begin seq))))
-
 (defmacro (cond . clauses)
+  (define (last-exp? seq)
+    (null? (cdr seq)))
+
+  (define (sequence->exp seq)
+    (if (null? seq)
+        seq
+        (if (last-exp? seq)
+            (car seq)
+            (cons 'begin seq))))
+
   (if (null? clauses)
       false
       (let ((first (car clauses))
@@ -130,7 +130,7 @@
                        clauses)))
             `(if ,(car first)
                  ,(sequence->exp (cdr first))
-                 (cond ,@rest))))))
+                 (cond ,@rest)))))
 
 (define +
   (let ((old+ +))

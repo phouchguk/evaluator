@@ -36,7 +36,6 @@
                          env))
         ((begin? exp)
          (eval-sequence (begin-actions exp) env))
-        ;((cond? exp) (my-eval (cond->if exp) env))
         ((application? exp)
          (let ((op (my-eval (operator exp) env)))
            (if (macro? op)               
@@ -182,9 +181,6 @@
       (cadddr exp)
       'false))
 
-(define (make-if predicate consequent alternative)
-  (mlist 'if predicate consequent alternative))
-
 ; begin
 
 (define (begin? exp) (tagged-list? exp 'begin))
@@ -207,31 +203,6 @@
 (define (no-operands? ops) (null? ops))
 (define (first-operand ops) (mcar ops))
 (define (rest-operands ops) (mcdr ops))
-
-; derived expressions
-
-(define (cond? exp) (tagged-list? exp 'cond))
-(define (cond-clauses exp) (mcdr exp))
-(define (cond-else-clause? clause)
-  (eq? (cond-predicate clause) 'else))
-(define (cond-predicate clause) (mcar clause))
-(define (cond-actions clause) (mcdr clause))
-(define (cond->if exp)
-  (expand-clauses (cond-clauses exp)))
-
-(define (expand-clauses clauses)
-  (if (null? clauses)
-      'false
-      (let ((first (mcar clauses))
-            (rest (mcdr clauses)))
-        (if (cond-else-clause? first)
-            (if (null? rest)
-                (sequence->exp (cond-actions first))
-                (error "ELSE clause isn't last -- COND->IF"
-                       clauses))
-            (make-if (cond-predicate first)
-                     (sequence->exp (cond-actions first))
-                     (expand-clauses rest))))))
 
 ;; evaluator data structures
 
@@ -318,8 +289,6 @@
   (env-loop env))
 
 (define (define-variable! var val env)
-  (display var)
-  (newline)
   (let ((frame (first-frame env)))
     (define (scan vars vals)
       (cond ((null? vars)
@@ -398,8 +367,8 @@
 (define (apply-primitive-procedure proc args)
   (apply (primitive-implementation proc) (mlist->list args)))
 
-(define input-prompt ";;; M-Eval input:")
-(define output-prompt ";;; M-Eval value:")
+(define input-prompt "> ")
+(define output-prompt "")
 
 (define (driver-loop)
   (prompt-for-input input-prompt)
@@ -410,10 +379,10 @@
   (driver-loop))
 
 (define (prompt-for-input string)
-  (newline) (newline) (display string) (newline))
+  (newline) (display string))
 
 (define (announce-output string)
-  (newline) (display string) (newline))
+  (display string) (newline))
 
 (my-read-string (slurp "core.scm"))
 
