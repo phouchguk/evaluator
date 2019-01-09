@@ -82,10 +82,48 @@
          list))
 
 (define (map proc . arg-lists)
-  (if (car arg-lists)
+  (if (null? (car arg-lists))
+      '()
       (cons (apply proc (unary-map car arg-lists))
             (apply map (cons proc
-                             (unary-map cdr arg-lists))))
-      '()))
+                             (unary-map cdr arg-lists))))))
+
 
 (define (append a b) (foldr cons b a))
+
+(defmacro (quasiquote x)
+  (if (pair? x)
+      (if (eq? (car x) 'unquote)
+          (cadr x)
+          (if (eq? (if (pair? (car x)) (caar x) '()) 'unquote-splicing)
+              (list 'append
+                    (cadr (car x))
+                    (list 'quasiquote (cdr x)))
+              (list 'cons
+                    (list 'quasiquote (car x))
+                    (list 'quasiquote (cdr x)))))
+      (list 'quote x)))
+
+(defmacro (let defs . body)
+  `((lambda ,(map car defs) ,@body)
+    ,@(map cadr defs)))
+
+(define +
+  (let ((old+ +))
+    (lambda xs (foldl old+ 0 xs))))
+
+(define *
+  (let ((old* *))
+    (lambda xs (foldl old* 1 xs))))
+
+(define -
+  (let ((old- -))
+    (lambda xs (if (cdr xs)
+		   (foldl old- (car xs) (cdr xs))
+		   (- 0 (car xs))))))
+
+(define /
+  (let ((old/ /))
+    (lambda xs (if (cdr xs)
+		   (foldl old/ (car xs) (cdr xs))
+		   (/ (car xs) 1)))))

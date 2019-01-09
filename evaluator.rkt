@@ -26,6 +26,7 @@
         ((quoted? exp) (text-of-quotation exp))
         ((assignment? exp) (eval-assignment exp env))
         ((definition? exp) (eval-definition exp env))
+        ((macro-definition? exp) (eval-macro-definition exp env))
         ((if? exp) (eval-if exp env))
         ((lambda? exp)
          (make-procedure (lambda-parameters exp)
@@ -35,8 +36,15 @@
          (eval-sequence (begin-actions exp) env))
         ((cond? exp) (my-eval (cond->if exp) env))
         ((application? exp)
-         (my-apply (my-eval (operator exp) env)
-                   (list-of-values (operands exp) env)))
+         (let ((op (my-eval (operator exp) env)))
+           (if (macro? op)               
+               (my-eval (my-apply (make-procedure (macro-parameters op)
+                                                  (macro-body op)
+                                                  the-global-environment)
+                                  (operands exp)) ; a macro doesn't eval its operands
+                        env)
+               (my-apply op
+                         (list-of-values (operands exp) env)))))
         (else
          (error "Unknown expression type -- EVAL" exp))))
 
@@ -86,6 +94,12 @@
                     env)
   'ok)
 
+(define (eval-macro-definition exp env)
+  (define-variable! (macro-definition-variable exp)
+                    (macro-definition-value exp)
+                    env)
+  'ok)
+
 ;; representing expressions
 
 ; self evaluating
@@ -127,6 +141,15 @@
       (make-lambda (cdadr exp)   ; formal parameters
                    (cddr exp)))) ; body
 
+; macro definitions
+(define (macro-definition? exp)
+  (tagged-list? exp 'defmacro))
+(define (macro-definition-variable exp)
+  (caadr exp))
+(define (macro-definition-value exp)
+  (make-macro (cdadr exp)   ; formal parameters
+              (cddr exp)))  ; body
+
 ; lambdas
 
 (define (lambda? exp) (tagged-list? exp 'lambda))
@@ -135,6 +158,14 @@
 
 (define (make-lambda parameters body)
   (mcons 'lambda (mcons parameters body)))
+
+; macros
+
+(define (macro? exp) (tagged-list? exp 'macro))
+(define (make-macro parameters body)
+  (mcons 'macro (mcons parameters body)))
+(define (macro-parameters exp) (cadr exp))
+(define (macro-body exp) (cddr exp))
 
 ; conditionals
 
@@ -304,12 +335,25 @@
 (define (slurp path)
   (file->string path))
 
+(define (user-print object)
+  (if (compound-procedure? object)
+      (display (mlist 'compound-procedure
+                     (procedure-parameters object)
+                     (procedure-body object)
+                     '<procedure-env>))
+      (if (macro? object)
+          (display (mlist 'macro
+                     (procedure-parameters object)
+                     (procedure-body object)))      
+          (display object))))
+
 (define primitive-procedures
   (mlist (mlist 'car mcar)
          (mlist 'cdr mcdr)
          (mlist 'cons mcons)
          (mlist 'null? (boolify null?))
          (mlist 'eq? (boolify eq?))
+         (mlist 'pair? (boolify mpair?))
          (mlist '+ +)
          (mlist '- -)
          (mlist '* *)
@@ -319,6 +363,7 @@
          (mlist 'slurp slurp)
          (mlist 'eval my-eval)
          (mlist 'apply my-apply)
+         (mlist 'display user-print)
          ))
 
 (define (primitive-procedure-names)
@@ -364,14 +409,6 @@
 
 (define (announce-output string)
   (newline) (display string) (newline))
-
-(define (user-print object)
-  (if (compound-procedure? object)
-      (display (list 'compound-procedure
-                     (procedure-parameters object)
-                     (procedure-body object)
-                     '<procedure-env>))
-      (display object)))
 
 (my-read-string (slurp "core.scm"))
 
