@@ -40,7 +40,7 @@
   (eq? x false))
 
 (define (and a b)
-  (if a (if b true false) false))
+  (if a (if b b false) false))
 
 (define (nand a b)
   (not (and a b)))
@@ -108,6 +108,30 @@
   `((lambda ,(map car defs) ,@body)
     ,@(map cadr defs)))
 
+(define (last-exp? seq)
+  (null? (cdr seq)))
+
+(define (sequence->exp seq)
+  (if (null? seq)
+      seq
+      (if (last-exp? seq)
+          (car seq)
+          (cons 'begin seq))))
+
+(defmacro (cond . clauses)
+  (if (null? clauses)
+      false
+      (let ((first (car clauses))
+            (rest (cdr clauses)))
+        (if (eq? (car first) 'else)
+            (if (null? rest)
+                (sequence->exp (cdr first))
+                (error "ELSE clause isn't last -- COND"
+                       clauses)))
+            `(if ,(car first)
+                 ,(sequence->exp (cdr first))
+                 (cond ,@rest))))))
+
 (define +
   (let ((old+ +))
     (lambda xs (foldl old+ 0 xs))))
@@ -118,12 +142,12 @@
 
 (define -
   (let ((old- -))
-    (lambda xs (if (cdr xs)
-		   (foldl old- (car xs) (cdr xs))
-		   (- 0 (car xs))))))
+    (lambda xs (if (null? (cdr xs))
+                   (- 0 (car xs))
+		   (foldl old- (car xs) (cdr xs))))))
 
 (define /
   (let ((old/ /))
-    (lambda xs (if (cdr xs)
-		   (foldl old/ (car xs) (cdr xs))
-		   (/ (car xs) 1)))))
+    (lambda xs (if (null? (cdr xs))
+                   (/ (car xs) 1)
+		   (foldl old/ (car xs) (cdr xs))))))

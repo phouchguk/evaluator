@@ -27,6 +27,8 @@
         ((assignment? exp) (eval-assignment exp env))
         ((definition? exp) (eval-definition exp env))
         ((macro-definition? exp) (eval-macro-definition exp env))
+        ((macro-expansion? exp) (expand-macro (lookup-variable-value (caadr exp) env)
+                                              (cdadr exp)))
         ((if? exp) (eval-if exp env))
         ((lambda? exp)
          (make-procedure (lambda-parameters exp)
@@ -34,14 +36,11 @@
                          env))
         ((begin? exp)
          (eval-sequence (begin-actions exp) env))
-        ((cond? exp) (my-eval (cond->if exp) env))
+        ;((cond? exp) (my-eval (cond->if exp) env))
         ((application? exp)
          (let ((op (my-eval (operator exp) env)))
            (if (macro? op)               
-               (my-eval (my-apply (make-procedure (macro-parameters op)
-                                                  (macro-body op)
-                                                  the-global-environment)
-                                  (operands exp)) ; a macro doesn't eval its operands
+               (my-eval (expand-macro op (operands exp)) ; a macro doesn't eval its operands
                         env)
                (my-apply op
                          (list-of-values (operands exp) env)))))
@@ -61,6 +60,10 @@
            (procedure-environment procedure))))
         (else
          (error "Unknown procedure type -- APPLY" procedure))))
+
+(define (expand-macro macro arguments)
+  (my-apply (mcdr macro) ; strip macro tag
+            arguments))
 
 ; procedure arguments
 (define (list-of-values exps env)
@@ -144,6 +147,8 @@
 ; macro definitions
 (define (macro-definition? exp)
   (tagged-list? exp 'defmacro))
+(define (macro-expansion? exp)
+  (tagged-list? exp 'macroexpand))
 (define (macro-definition-variable exp)
   (caadr exp))
 (define (macro-definition-value exp)
@@ -163,7 +168,7 @@
 
 (define (macro? exp) (tagged-list? exp 'macro))
 (define (make-macro parameters body)
-  (mcons 'macro (mcons parameters body)))
+  (mcons 'macro (make-procedure parameters body the-global-environment)))
 (define (macro-parameters exp) (cadr exp))
 (define (macro-body exp) (cddr exp))
 
