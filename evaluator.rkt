@@ -1,5 +1,6 @@
 #lang racket
 
+(require racket/file)
 (require racket/mpair)
 (require compatibility/mlist)
 
@@ -230,12 +231,25 @@
   (set-mcar! frame (mcons var (mcar frame)))
   (set-mcdr! frame (mcons val (mcdr frame))))
 
+(define (scan-vars vars vals callback)
+  (define (loop acc-vars acc-vals vars vals)
+    (if (null? vars)
+        (callback acc-vars acc-vals)
+        (if (symbol? vars)
+            (loop (mcons vars acc-vars)
+                  (mcons vals acc-vals)
+                  '()
+                  '())
+            (loop (mcons (mcar vars) acc-vars)
+                  (mcons (mcar vals) acc-vals)
+                  (mcdr vars)
+                  (mcdr vals)))))
+  (loop '() '() vars vals))
+
 (define (extend-environment vars vals base-env)
-  (if (= (mlength vars) (mlength vals))
-      (mcons (make-frame vars vals) base-env)
-      (if (< (length vars) (length vals))
-          (error "Too many arguments supplied" vars vals)
-          (error "Too few arguments supplied" vars vals))))
+  (if (and (pair? vals) (< (mlength vals) (mlength vars)))
+      (error "Too few arguments supplied" vars vals)
+      (scan-vars vars vals (lambda (vars vals) (mcons (make-frame vars vals) base-env))))) 
 
 (define (lookup-variable-value var env)
   (define (env-loop env)
@@ -287,9 +301,8 @@
 (define (my-read-string s)
   (my-eval (mlistify (read (open-input-string (string-append "(begin " s ")")))) the-global-environment))
 
-(define (slurp file)
-  (call-with-input-file file
-    (lambda (in) (read-string 2000 in))))
+(define (slurp path)
+  (file->string path))
 
 (define primitive-procedures
   (mlist (mlist 'car mcar)
@@ -305,6 +318,7 @@
          (mlist 'read-string my-read-string)
          (mlist 'slurp slurp)
          (mlist 'eval my-eval)
+         (mlist 'apply my-apply)
          ))
 
 (define (primitive-procedure-names)

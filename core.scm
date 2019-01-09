@@ -70,5 +70,22 @@
       (proc (car list)
             (foldr proc init (cdr list)))))
 
+(define (list . items)
+  (foldr cons '() items))
+
 (define (reverse list)
   (foldl (lambda (a x) (cons x a)) '() list))
+
+(define (unary-map proc list)
+  (foldr (lambda (x rest) (cons (proc x) rest))
+         '()
+         list))
+
+(define (map proc . arg-lists)
+  (if (car arg-lists)
+      (cons (apply proc (unary-map car arg-lists))
+            (apply map (cons proc
+                             (unary-map cdr arg-lists))))
+      '()))
+
+(define (append a b) (foldr cons b a))
